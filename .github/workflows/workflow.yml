@@ -18,14 +18,14 @@ jobs:
         id: check-tag
         run: |
           if [[ ${{ github.event.ref }} =~ ^refs/tags/v[0-9] ]]; then
-              echo ::set-output name=match::true
+              echo "match=true" >> $GITHUB_OUTPUT
           fi
       - uses: actions/checkout@v3
       - name: Extract MIDI filenames from job.json
         id: out-filenames
         run: |
           midi_filenames=$(jq -c 'reduce ([.[].out] | flatten) as $x ([]; . + $x) | map(select(ascii_downcase | endswith(".mid") or endswith(".midi")))' "$JOB_FILE")
-          echo ::set-output name=midi::"$midi_filenames"
+          echo "midi=$midi_filenames" >> $GITHUB_OUTPUT
       - run: |
           sudo snap install musescore
           sudo snap connect musescore:cups-control
@@ -51,7 +51,6 @@ jobs:
     container: scottyhardy/docker-wine
     env:
       DISPLAY: ':49'
-      WINEDEBUG: '+x11drv'
     steps:
       - run: |
           wget https://meme.institute/gxscc/gxscc.zip
@@ -67,6 +66,35 @@ jobs:
       # source: https://unix.stackexchange.com/a/259403
       - name: Generate chiptune version from MIDI
         run: |
+          while_xdotool() {
+            # source: https://gist.github.com/shvchk/ecfcb9c43050a08cb55ece9efb935da9
+            T0=$(date +%s)
+
+            while [ $(( `date +%s` - T0 )) -lt 60 ]; do
+              set +e
+              errout=$(xdotool "$@" 2>&1 1>/dev/null)
+              errcode=$?
+              [ $errcode -eq 0 ] || echo "$errout"
+              set -e
+              case "$errout" in
+                *BadWindow*)
+                  ;;
+                *)
+                  [ $errcode -eq 0 ] || break
+                  ;;
+              esac
+              sleep 0.1
+            done
+          }
+          until_xdotool() {
+            # source: https://gist.github.com/shvchk/ecfcb9c43050a08cb55ece9efb935da9
+            T0=$(date +%s)
+
+            while [ $(( `date +%s` - T0 )) -lt 60 ]; do
+              xdotool "$@" >/dev/null && break
+              sleep 0.1
+            done
+          }
           sudo chown -R "$(whoami)" ~
           echo 'pcm.!default {\n    type plug\n    slave.pcm "null"\n}' > /etc/asound.conf
           Xvfb $DISPLAY &
@@ -83,28 +111,25 @@ jobs:
             fi
             wine gxscc.exe "$input_filename" &
             echo "Waiting for initial prompt"
-            xdotool search --sync --onlyvisible --name "^GXSCC$" key Return
+            until_xdotool search --onlyvisible --name "^GXSCC$" key Return
             echo "Waiting for main window init"
-            xdotool search --sync --onlyvisible --name "^GASHISOFT GXSCC" windowmove 0 0
-            xdotool mousemove 310 50 click 1
+            until_xdotool search --onlyvisible --name "^GASHISOFT GXSCC" windowmove --sync 0 0
+            xdotool mousemove --sync 310 50 click 1
             echo "Waiting for Authoring prompt"
-            xdotool search --sync --onlyvisible --name "^GXSCC$" key Return
+            until_xdotool search --onlyvisible --name "^GXSCC$" key Return
             echo "Waiting for Authoring end"
-            while xdotool search --onlyvisible --name "^GXSCC$"; do
-              sleep 1
-            done
+            while_xdotool search --onlyvisible --name "^GXSCC$"
             until xdotool search --onlyvisible --name "^GXSCC$"; do
-              xdotool mousemove 310 50 click 1
+              xdotool mousemove --sync 310 50 click 1
               sleep 1
             done
-            xdotool search --sync --onlyvisible --name "^GXSCC$" key Escape
+            until_xdotool search --onlyvisible --name "^GXSCC$" key Escape
             echo "Closing windows"
-            xdotool mousemove 625 10 click 1
-            while xdotool search --onlyvisible --name "^GASHISOFT GXSCC"; do
-              sleep 1
-            done
+            xdotool mousemove --sync 625 10 click 1
+            while_xdotool search --onlyvisible --name "^GASHISOFT GXSCC"
             sleep 1
           done
+          find -iname '*.mwav' | sed 'p;s/\.mwav$/\.WAV/i' | xargs -rd '\n' -n 2 mv
           ps auxww | grep "Xvfb $DISPLAY" | grep -v 'grep' | awk '{print $2}' | xargs -r kill
       - name: Update artifacts
         uses: actions/upload-artifact@v3
@@ -126,7 +151,7 @@ jobs:
         with:
           path: repository
       - name: Create a release
-        uses: softprops/action-gh-release@v0.1.14
+        uses: softprops/action-gh-release@v1
         id: create-release
         with:
           body_path: repository/CHANGELOG.md
