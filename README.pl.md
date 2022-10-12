@@ -24,4 +24,4 @@ Pliki audio oraz nuty dostępne są na stronie [najświeższego wydania](https:/
 - Spotify: https://open.spotify.com/track/4Iy8bEWuaig4swbzUYyhVe?si=97dafb44990f44fd
 - Apple Music: https://music.apple.com/gb/album/university-of-magic/1511913253?i=1511913254
 - deezer: https://deezer.page.link/xTZu8SgHYTbL4dJA7
-- YouTube: https://www.youtube.com/watch?v=4Qhf6E6LMOU
+- YouTube: https://www.youtube.com/watch?v=0Z-M5YIkOOQ
