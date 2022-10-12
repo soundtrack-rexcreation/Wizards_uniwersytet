@@ -1,0 +1,134 @@
+name: Release
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      is-release: ${{ steps.check-tag.outputs.match }}
+      midi-filenames: ${{ steps.out-filenames.outputs.midi }}
+    env:
+      JOB_FILE: ./job.json
+    steps:
+      # source: https://stackoverflow.com/a/58869470
+      - name: Check tag
+        id: check-tag
+        run: |
+          if [[ ${{ github.event.ref }} =~ ^refs/tags/v[0-9] ]]; then
+              echo ::set-output name=match::true
+          fi
+      - uses: actions/checkout@v3
+      - name: Extract MIDI filenames from job.json
+        id: out-filenames
+        run: |
+          midi_filenames=$(jq -c 'reduce ([.[].out] | flatten) as $x ([]; . + $x) | map(select(ascii_downcase | endswith(".mid") or endswith(".midi")))' "$JOB_FILE")
+          echo ::set-output name=midi::"$midi_filenames"
+      - run: |
+          sudo snap install musescore
+          sudo snap connect musescore:cups-control
+      - name: Run conversion job
+        run: xvfb-run -a musescore.mscore -j "$JOB_FILE"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            *.flac
+            *.mid
+            *.midi
+            *.mp3
+            *.ogg
+            *.pdf
+            *.png
+            *.svg
+            *.wav
+  build-chiptune:
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    container: scottyhardy/docker-wine
+    env:
+      DISPLAY: ':49'
+      WINEDEBUG: '+x11drv'
+    steps:
+      - run: |
+          wget https://meme.institute/gxscc/gxscc.zip
+          unzip ./gxscc.zip
+          rm ./gxscc.zip
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y x11-utils xdotool jq
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+      # source: https://unix.stackexchange.com/a/259403
+      - name: Generate chiptune version from MIDI
+        run: |
+          sudo chown -R "$(whoami)" ~
+          echo 'pcm.!default {\n    type plug\n    slave.pcm "null"\n}' > /etc/asound.conf
+          Xvfb $DISPLAY &
+          echo "Waiting for display $DISPLAY to become available"
+          until xwininfo -root; do
+            sleep 1
+          done
+          midi_filenames_json='${{ needs.build.outputs.midi-filenames }}'
+          echo "$midi_filenames_json" | jq -r '.[]' | while IFS= read -r input_filename; do
+            echo "Generating chiptune from $input_filename"
+            if [ ! -e "$input_filename" ]; then
+              echo "File $input_filename not found"
+              false
+            fi
+            wine gxscc.exe "$input_filename" &
+            echo "Waiting for initial prompt"
+            xdotool search --sync --onlyvisible --name "^GXSCC$" key Return
+            echo "Waiting for main window init"
+            xdotool search --sync --onlyvisible --name "^GASHISOFT GXSCC" windowmove 0 0
+            xdotool mousemove 310 50 click 1
+            echo "Waiting for Authoring prompt"
+            xdotool search --sync --onlyvisible --name "^GXSCC$" key Return
+            echo "Waiting for Authoring end"
+            while xdotool search --onlyvisible --name "^GXSCC$"; do
+              sleep 1
+            done
+            until xdotool search --onlyvisible --name "^GXSCC$"; do
+              xdotool mousemove 310 50 click 1
+              sleep 1
+            done
+            xdotool search --sync --onlyvisible --name "^GXSCC$" key Escape
+            echo "Closing windows"
+            xdotool mousemove 625 10 click 1
+            while xdotool search --onlyvisible --name "^GASHISOFT GXSCC"; do
+              sleep 1
+            done
+            sleep 1
+          done
+          ps auxww | grep "Xvfb $DISPLAY" | grep -v 'grep' | awk '{print $2}' | xargs -r kill
+      - name: Update artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: ./*.[Ww][Aa][Vv]
+  # source: https://stackoverflow.com/a/70716837
+  release:
+    runs-on: ubuntu-latest
+    needs: [ build, build-chiptune ]
+    if: needs.build.outputs.is-release == 'true'
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: artifacts
+      - uses: actions/checkout@v3
+        with:
+          path: repository
+      - name: Create a release
+        uses: softprops/action-gh-release@v0.1.14
+        id: create-release
+        with:
+          body_path: repository/CHANGELOG.md
+          files: artifacts/*
+          fail_on_unmatched_files: true
