@@ -1,6 +1,6 @@
 # Rex and the Wizards: uniwersytet
 
-![GitHub Workflow status](https://img.shields.io/github/workflow/status/soundtrack-rexcreation/Wizards_uniwersytet/workflow)
+![GitHub Workflow status](https://img.shields.io/github/workflow/status/soundtrack-rexcreation/Wizards_uniwersytet/Release)
 ![Total download count](https://img.shields.io/github/downloads/soundtrack-rexcreation/Wizards_uniwersytet/total)
 ![License](https://img.shields.io/github/license/soundtrack-rexcreation/Wizards_uniwersytet)
 ![Latest release version](https://img.shields.io/github/v/release/soundtrack-rexcreation/Wizards_uniwersytet)

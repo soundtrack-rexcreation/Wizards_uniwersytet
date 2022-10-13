@@ -1,6 +1,6 @@
 # Reksio i Czarodzieje: uniwersytet
 
-![Status GitHub Workflow](https://img.shields.io/github/workflow/status/soundtrack-rexcreation/Wizards_uniwersytet/workflow)
+![Status GitHub Workflow](https://img.shields.io/github/workflow/status/soundtrack-rexcreation/Wizards_uniwersytet/Release)
 ![Łączna liczba pobrań](https://img.shields.io/github/downloads/soundtrack-rexcreation/Wizards_uniwersytet/total?label=pobrania)
 ![Licencja](https://img.shields.io/github/license/soundtrack-rexcreation/Wizards_uniwersytet?label=licencja)
 ![Ostatni numer wydania](https://img.shields.io/github/v/release/soundtrack-rexcreation/Wizards_uniwersytet?label=wydanie)
